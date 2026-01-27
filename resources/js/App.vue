@@ -2,52 +2,57 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
-// --- STATE (DATA) ---
 const entries = ref([]);
 const newFood = ref('');
 const newCalories = ref('');
 const newProtein = ref('');
 
-// --- LOGIC (OTAK) ---
-// 1. Ambil data dari server saat web dibuka
+// --- LOGIC ---
 const fetchEntries = async () => {
   try {
     const response = await axios.get('/api/food-entries');
     entries.value = response.data;
   } catch (error) {
-    console.error("Gagal ambil data:", error);
+    console.error("Error:", error);
   }
 };
 
-// 2. Kirim data baru ke server
 const addEntry = async () => {
-  if (!newFood.value || !newCalories.value) return; // Jangan kirim kalau kosong
-
+  if (!newFood.value || !newCalories.value) return;
   try {
     const response = await axios.post('/api/food-entries', {
       name: newFood.value,
       calories: newCalories.value,
       protein: newProtein.value || 0
     });
-    // Masukkan data baru ke daftar (biar langsung muncul tanpa refresh)
     entries.value.unshift(response.data);
-    
-    // Reset form jadi kosong lagi
-    newFood.value = '';
-    newCalories.value = '';
-    newProtein.value = '';
+    newFood.value = ''; newCalories.value = ''; newProtein.value = '';
   } catch (error) {
-    console.error("Gagal simpan:", error);
-    alert("Gagal menyimpan data. Cek koneksi internet.");
+    alert("Gagal simpan. Cek koneksi.");
   }
 };
 
-// 3. Hitung Total (Fitur Tambahan Biar Keren)
+// FUNGSI HAPUS (BARU)
+const deleteEntry = async (id) => {
+  if(!confirm("Yakin mau hapus?")) return; // Konfirmasi dulu
+  
+  try {
+    await axios.delete(`/api/food-entries/${id}`);
+    // Hapus dari layar tanpa refresh
+    entries.value = entries.value.filter(item => item.id !== id);
+  } catch (error) {
+    alert("Gagal menghapus data.");
+  }
+};
+
+// HITUNG TOTAL (Updated)
 const totalCalories = computed(() => {
   return entries.value.reduce((sum, item) => sum + Number(item.calories), 0);
 });
+const totalProtein = computed(() => {
+  return entries.value.reduce((sum, item) => sum + Number(item.protein), 0);
+});
 
-// Jalankan fetch saat pertama kali
 onMounted(fetchEntries);
 </script>
 
@@ -59,22 +64,26 @@ onMounted(fetchEntries);
         <p class="subtitle">Catat makro harianmu</p>
       </div>
 
-      <div class="summary-box">
-        <span class="label">Total Kalori Hari Ini</span>
-        <span class="value">{{ totalCalories }} kcal</span>
+      <div class="stats-container">
+        <div class="summary-box cal">
+          <span class="label">Total Kalori</span>
+          <span class="value">{{ totalCalories }} kcal</span>
+        </div>
+        <div class="summary-box pro">
+          <span class="label">Total Protein</span>
+          <span class="value">{{ totalProtein }} g</span>
+        </div>
       </div>
 
       <div class="input-section">
         <div class="input-group">
-          <input v-model="newFood" placeholder="Nama Makanan (mis: Nasi Goreng)" type="text" />
+          <input v-model="newFood" placeholder="Nama Makanan (mis: Dada Ayam)" type="text" />
         </div>
         <div class="row-inputs">
           <input v-model="newCalories" placeholder="Kalori" type="number" />
           <input v-model="newProtein" placeholder="Protein (g)" type="number" />
         </div>
-        <button @click="addEntry" class="btn-save">
-          + Tambah Makanan
-        </button>
+        <button @click="addEntry" class="btn-save">+ Tambah Makanan</button>
       </div>
 
       <div class="list-section">
@@ -85,8 +94,9 @@ onMounted(fetchEntries);
               <span class="food-name">{{ entry.name }}</span>
               <span class="food-detail">{{ entry.protein }}g Protein</span>
             </div>
-            <div class="food-calories">
-              {{ entry.calories }} kcal
+            <div class="right-side">
+              <span class="food-calories">{{ entry.calories }} kcal</span>
+              <button @click="deleteEntry(entry.id)" class="btn-delete">×</button>
             </div>
           </li>
         </ul>
@@ -97,149 +107,54 @@ onMounted(fetchEntries);
 </template>
 
 <style scoped>
-/* BACKGROUND UTAMA */
 .app-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Warna Ungu Modern */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex; justify-content: center; align-items: center; padding: 20px;
   font-family: 'Segoe UI', sans-serif;
 }
-
-/* KARTU UTAMA (KOTAK PUTIH) */
 .main-card {
-  background: white;
-  width: 100%;
-  max-width: 450px; /* Ukuran mirip layar HP */
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-  overflow: hidden;
+  background: white; width: 100%; max-width: 450px;
+  border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
   padding: 25px;
 }
+.header { text-align: center; margin-bottom: 20px; }
+.header h1 { margin: 0; font-size: 24px; color: #333; }
+.subtitle { color: #666; font-size: 14px; }
 
-/* HEADER */
-.header {
-  text-align: center;
-  margin-bottom: 20px;
-}
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-  color: #333;
-}
-.subtitle {
-  color: #666;
-  font-size: 14px;
-  margin-top: 5px;
-}
-
-/* SUMMARY BOX */
+/* STATS CONTAINER (BARU) */
+.stats-container { display: flex; gap: 10px; margin-bottom: 25px; }
 .summary-box {
-  background: #f0f4f8;
-  padding: 15px;
-  border-radius: 12px;
-  text-align: center;
-  margin-bottom: 25px;
-  border: 1px solid #d1d9e6;
+  flex: 1; padding: 15px; border-radius: 12px; text-align: center;
 }
-.summary-box .label {
-  display: block;
-  font-size: 12px;
-  color: #555;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.summary-box .value {
-  font-size: 28px;
-  font-weight: bold;
-  color: #764ba2;
-}
+.summary-box.cal { background: #e0f2fe; color: #0284c7; }
+.summary-box.pro { background: #dcfce7; color: #16a34a; }
 
-/* INPUT FORM */
-.input-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 30px;
-}
-input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.3s;
-}
-input:focus {
-  border-color: #764ba2;
-}
-.row-inputs {
-  display: flex;
-  gap: 10px;
-}
+.label { display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; opacity: 0.8; }
+.value { font-size: 24px; font-weight: bold; }
 
-/* TOMBOL */
-.btn-save {
-  background: #764ba2;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.btn-save:hover {
-  background: #5b3780;
-}
+.input-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+input:focus { border-color: #764ba2; }
+.row-inputs { display: flex; gap: 10px; }
+.btn-save { background: #764ba2; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-/* LIST MAKANAN */
-h3 {
-  font-size: 16px;
-  color: #333;
-  margin-bottom: 10px;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 5px;
+h3 { font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 5px; }
+ul { list-style: none; padding: 0; margin: 0; }
+.food-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
+.food-info { display: flex; flex-direction: column; }
+.food-name { font-weight: 600; color: #333; }
+.food-detail { font-size: 12px; color: #888; }
+.right-side { display: flex; align-items: center; gap: 10px; }
+.food-calories { font-weight: bold; color: #555; font-size: 13px; }
+
+/* TOMBOL DELETE (BARU) */
+.btn-delete {
+  background: #fee2e2; color: #ef4444; border: none;
+  width: 30px; height: 30px; border-radius: 50%;
+  font-size: 18px; cursor: pointer; display: flex; justify-content: center; align-items: center;
+  transition: all 0.2s;
 }
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.food-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #eee;
-}
-.food-info {
-  display: flex;
-  flex-direction: column;
-}
-.food-name {
-  font-weight: 600;
-  color: #333;
-}
-.food-detail {
-  font-size: 12px;
-  color: #888;
-}
-.food-calories {
-  font-weight: bold;
-  color: #e74c3c; /* Merah untuk angka kalori */
-  background: #fdeaea;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-.empty-state {
-  text-align: center;
-  color: #999;
-  font-style: italic;
-  margin-top: 20px;
-}
+.btn-delete:hover { background: #ef4444; color: white; }
+.empty-state { text-align: center; color: #999; margin-top: 20px; font-style: italic;}
 </style>
