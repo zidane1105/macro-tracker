@@ -1,107 +1,117 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
-import axios from 'axios';
+import { ref, onMounted, computed } from 'vue'
+import axios from 'axios'
 
-const entries = ref([]);
-const newFood = ref('');
-const newCalories = ref('');
-const newProtein = ref('');
+/* ================= STATE ================= */
+const entries = ref([])
+const newFood = ref('')
+const newCalories = ref('')
+const newProtein = ref('')
+const searchKeyword = ref('')
 
-// --- LOGIC ---
+/* ================= API BASE ================= */
+// kalau pakai Vite + Laravel
+axios.defaults.baseURL = 'http://localhost:8000'
+
+/* ================= CRUD ================= */
 const fetchEntries = async () => {
-  try {
-    const response = await axios.get('/api/food-entries');
-    entries.value = response.data;
-  } catch (error) {
-    console.error("Error:", error);
-  }
-};
+  const res = await axios.get('/api/food-entries')
+  entries.value = res.data
+}
 
 const addEntry = async () => {
-  if (!newFood.value || !newCalories.value) return;
-  try {
-    const response = await axios.post('/api/food-entries', {
-      name: newFood.value,
-      calories: newCalories.value,
-      protein: newProtein.value || 0
-    });
-    entries.value.unshift(response.data);
-    newFood.value = ''; newCalories.value = ''; newProtein.value = '';
-  } catch (error) {
-    alert("Gagal simpan. Cek koneksi.");
-  }
-};
+  if (!newFood.value || !newCalories.value) return
 
-// FUNGSI HAPUS (BARU)
+  const res = await axios.post('/api/food-entries', {
+    name: newFood.value,
+    calories: newCalories.value,
+    protein: newProtein.value || 0
+  })
+
+  entries.value.unshift(res.data)
+  newFood.value = ''
+  newCalories.value = ''
+  newProtein.value = ''
+}
+
 const deleteEntry = async (id) => {
-  if(!confirm("Yakin mau hapus?")) return; // Konfirmasi dulu
-  
-  try {
-    await axios.delete(`/api/food-entries/${id}`);
-    // Hapus dari layar tanpa refresh
-    entries.value = entries.value.filter(item => item.id !== id);
-  } catch (error) {
-    alert("Gagal menghapus data.");
+  if (!confirm('Yakin mau hapus?')) return
+
+  await axios.delete(`/api/food-entries/${id}`)
+  entries.value = entries.value.filter(item => item.id !== id)
+}
+
+/* ================= ALGORITMA (API) ================= */
+
+// SORTING (Bubble Sort di Backend)
+const sortByCalories = async () => {
+  const res = await axios.get('/api/food-entries/sort/calories')
+  entries.value = res.data
+}
+
+// SEARCHING (Manual Search di Backend)
+const searchFood = async () => {
+  if (!searchKeyword.value) {
+    fetchEntries()
+    return
   }
-};
+  const res = await axios.get(
+    `/api/food-entries/search/${searchKeyword.value}`
+  )
+  entries.value = res.data
+}
 
-// HITUNG TOTAL (Updated)
-const totalCalories = computed(() => {
-  return entries.value.reduce((sum, item) => sum + Number(item.calories), 0);
-});
-const totalProtein = computed(() => {
-  return entries.value.reduce((sum, item) => sum + Number(item.protein), 0);
-});
+/* ================= AGREGASI ================= */
+const totalCalories = computed(() =>
+  entries.value.reduce((sum, item) => sum + Number(item.calories), 0)
+)
 
-onMounted(fetchEntries);
+const totalProtein = computed(() =>
+  entries.value.reduce((sum, item) => sum + Number(item.protein), 0)
+)
+
+onMounted(fetchEntries)
 </script>
 
 <template>
   <div class="app-container">
     <div class="main-card">
-      <div class="header">
-        <h1>🍽️ Macro Tracker</h1>
-        <p class="subtitle">Catat makro harianmu</p>
+      <h1>🍽️ Macro Tracker</h1>
+      <p class="subtitle">Client–Server Food Tracker</p>
+
+      <!-- SUMMARY -->
+      <div class="stats">
+        <div>🔥 {{ totalCalories }} kcal</div>
+        <div>💪 {{ totalProtein }} g protein</div>
       </div>
 
-      <div class="stats-container">
-        <div class="summary-box cal">
-          <span class="label">Total Kalori</span>
-          <span class="value">{{ totalCalories }} kcal</span>
-        </div>
-        <div class="summary-box pro">
-          <span class="label">Total Protein</span>
-          <span class="value">{{ totalProtein }} g</span>
-        </div>
-      </div>
+      <!-- INPUT -->
+      <input v-model="newFood" placeholder="Nama makanan" />
+      <input v-model="newCalories" type="number" placeholder="Kalori" />
+      <input v-model="newProtein" type="number" placeholder="Protein" />
+      <button @click="addEntry">Tambah</button>
 
-      <div class="input-section">
-        <div class="input-group">
-          <input v-model="newFood" placeholder="Nama Makanan (mis: Dada Ayam)" type="text" />
-        </div>
-        <div class="row-inputs">
-          <input v-model="newCalories" placeholder="Kalori" type="number" />
-          <input v-model="newProtein" placeholder="Protein (g)" type="number" />
-        </div>
-        <button @click="addEntry" class="btn-save">+ Tambah Makanan</button>
-      </div>
+      <!-- SEARCH & SORT -->
+      <input
+        v-model="searchKeyword"
+        placeholder="Cari makanan..."
+        @input="searchFood"
+      />
+      <button @click="sortByCalories">Urutkan Kalori</button>
 
-      <div class="list-section">
-        <h3>Riwayat Makan</h3>
-        <ul v-if="entries.length > 0">
-          <li v-for="entry in entries" :key="entry.id" class="food-item">
-            <div class="food-info">
-              <span class="food-name">{{ entry.name }}</span>
-              <span class="food-detail">{{ entry.protein }}g Protein</span>
-            </div>
-            <div class="right-side">
-              <span class="food-calories">{{ entry.calories }} kcal</span>
-              <button @click="deleteEntry(entry.id)" class="btn-delete">×</button>
-            </div>
-          </li>
-        </ul>
-        <p v-else class="empty-state">Belum ada data makanan hari ini.</p>
-      </div>
+      <!-- LIST -->
+      <ul>
+        <li v-for="item in entries" :key="item.id">
+          <span>
+            {{ item.name }} —
+            {{ item.calories }} kcal —
+            {{ item.protein }} g
+          </span>
+          <button @click="deleteEntry(item.id)">❌</button>
+        </li>
+      </ul>
+
+      <p v-if="entries.length === 0">Belum ada data</p>
     </div>
   </div>
 </template>
@@ -109,52 +119,53 @@ onMounted(fetchEntries);
 <style scoped>
 .app-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex; justify-content: center; align-items: center; padding: 20px;
-  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #eef2ff;
 }
 .main-card {
-  background: white; width: 100%; max-width: 450px;
-  border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-  padding: 25px;
+  background: white;
+  padding: 20px;
+  width: 400px;
+  border-radius: 12px;
 }
-.header { text-align: center; margin-bottom: 20px; }
-.header h1 { margin: 0; font-size: 24px; color: #333; }
-.subtitle { color: #666; font-size: 14px; }
-
-/* STATS CONTAINER (BARU) */
-.stats-container { display: flex; gap: 10px; margin-bottom: 25px; }
-.summary-box {
-  flex: 1; padding: 15px; border-radius: 12px; text-align: center;
+h1 {
+  margin-bottom: 0;
 }
-.summary-box.cal { background: #e0f2fe; color: #0284c7; }
-.summary-box.pro { background: #dcfce7; color: #16a34a; }
-
-.label { display: block; font-size: 11px; text-transform: uppercase; margin-bottom: 5px; opacity: 0.8; }
-.value { font-size: 24px; font-weight: bold; }
-
-.input-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
-input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
-input:focus { border-color: #764ba2; }
-.row-inputs { display: flex; gap: 10px; }
-.btn-save { background: #764ba2; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-
-h3 { font-size: 16px; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 5px; }
-ul { list-style: none; padding: 0; margin: 0; }
-.food-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
-.food-info { display: flex; flex-direction: column; }
-.food-name { font-weight: 600; color: #333; }
-.food-detail { font-size: 12px; color: #888; }
-.right-side { display: flex; align-items: center; gap: 10px; }
-.food-calories { font-weight: bold; color: #555; font-size: 13px; }
-
-/* TOMBOL DELETE (BARU) */
-.btn-delete {
-  background: #fee2e2; color: #ef4444; border: none;
-  width: 30px; height: 30px; border-radius: 50%;
-  font-size: 18px; cursor: pointer; display: flex; justify-content: center; align-items: center;
-  transition: all 0.2s;
+.subtitle {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 15px;
 }
-.btn-delete:hover { background: #ef4444; color: white; }
-.empty-state { text-align: center; color: #999; margin-top: 20px; font-style: italic;}
+.stats {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+input {
+  width: 100%;
+  padding: 8px;
+  margin: 4px 0;
+}
+button {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+}
+ul {
+  margin-top: 15px;
+  padding: 0;
+  list-style: none;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
 </style>
