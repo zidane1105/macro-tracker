@@ -9,9 +9,9 @@ const newCalories = ref('')
 const newProtein = ref('')
 const searchKeyword = ref('')
 
-/* ================= API BASE ================= */
-// sesuaikan dengan port backend laravel kamu
-axios.defaults.baseURL = 'http://localhost:8000'
+/* ================= API CONFIG ================= */
+// HAPUS atau KOMENTARI baris localhost ini agar jalan di Railway/HP
+// axios.defaults.baseURL = 'http://localhost:8000' 
 
 /* ================= CRUD ================= */
 const fetchEntries = async () => {
@@ -35,7 +35,10 @@ const addEntry = async () => {
     newFood.value = ''
     newCalories.value = ''
     newProtein.value = ''
-  } catch (e) { console.error(e) }
+  } catch (e) { 
+      alert("Gagal menambah data. Cek koneksi internet.");
+      console.error(e); 
+  }
 }
 
 const deleteEntry = async (id) => {
@@ -48,7 +51,6 @@ const deleteEntry = async (id) => {
 }
 
 /* ================= ALGORITMA (API) ================= */
-// SORTING (Bubble Sort di Backend)
 const sortByCalories = async () => {
   try {
     const res = await axios.get('/api/food-entries/sort/calories')
@@ -56,7 +58,6 @@ const sortByCalories = async () => {
   } catch (e) { console.error(e) }
 }
 
-// SEARCHING (Manual Search di Backend)
 const searchFood = async () => {
   if (!searchKeyword.value) {
     fetchEntries()
